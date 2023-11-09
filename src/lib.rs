@@ -1,3 +1,4 @@
+use heed::EnvOpenOptions;
 use heed::types::Str;
 use matrix_sdk::ruma::MilliSecondsSinceUnixEpoch;
 use matrix_sdk::ruma::{OwnedEventId, OwnedRoomId, OwnedUserId};
@@ -5,10 +6,10 @@ use serde::Deserialize;
 use serde::Serialize;
 use std::collections::HashMap;
 
+#[derive(Clone)]
 pub struct LuoxuBotContext {
     pub search: meilisearch_sdk::client::Client,
-    pub db: heed::Database<Str, Str>,
-    pub env: heed::Env,
+    pub store: HeedStore
 }
 
 #[derive(Deserialize, Debug)]
@@ -68,5 +69,62 @@ pub struct KeyEventId(String);
 impl From<OwnedEventId> for KeyEventId {
     fn from(event_id: OwnedEventId) -> Self {
         KeyEventId(event_id.as_str().strip_prefix('$').unwrap().to_string())
+    }
+}
+
+#[derive(Clone)]
+/// State store backed by Heed.
+pub struct HeedStore {
+    pub env: heed::Env,
+    pub index_db: heed::Database<Str, Str>,
+    pub name_db: heed::Database<Str, Str>,
+}
+
+impl HeedStore {
+    pub fn new(location: &str) -> Result<Self, heed::Error> {
+        let env = EnvOpenOptions::new().open(location)?;
+        let index_db = env.create_database(Some("index"))?;
+        let name_db = env.create_database(Some("name"))?;
+        Ok(HeedStore { env, index_db, name_db })
+    }
+
+    pub fn add_entry(&self, room_id: &str, index: &str, name: Option<&str>) -> Result<(), heed::Error> {
+        let mut wtxn = self.env.write_txn()?;
+        self.index_db.put(&mut wtxn, room_id, index)?;
+        self.name_db.put(&mut wtxn, room_id, name.unwrap_or(room_id))?;
+        wtxn.commit()?;
+        Ok(())
+    }
+
+    pub fn move_entry(&self, old_room_id: &str, new_room_id: &str) -> Result<(), heed::Error> {
+        let rtxn = self.env.read_txn()?;
+        let index = self.index_db.get(&rtxn, old_room_id)?;
+        let name = self.name_db.get(&rtxn, old_room_id)?;
+        let mut wtxn = self.env.write_txn()?;
+        self.index_db.put(&mut wtxn, new_room_id, index.unwrap())?;
+        self.name_db.put(&mut wtxn, new_room_id, name.unwrap())?;
+        wtxn.commit()?;
+        Ok(())
+    }
+
+    pub fn update_entry(&self, room_id: &str, index: Option<&str>, name: Option<&str>) -> Result<(), heed::Error> {
+        let mut wtxn = self.env.write_txn()?;
+        if let Some(index) = index {
+            self.index_db.put(&mut wtxn, room_id, index)?;
+        }
+        if let Some(name) = name {
+            self.name_db.put(&mut wtxn, room_id, name)?;
+        }
+        wtxn.commit()?;
+        Ok(())
+    }
+
+    pub fn get_index(&self, room_id: OwnedRoomId) -> Result<Option<String>, heed::Error> {
+        let rtxn = self.env.read_txn()?;
+        if let Some(index) = self.index_db.get(&rtxn, room_id.as_str())? {
+            Ok(Some(index.to_string()))
+        } else {
+            Ok(None)
+        }
     }
 }
