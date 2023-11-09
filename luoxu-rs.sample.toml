@@ -1,0 +1,30 @@
+# Copy this file to luoxu-rs.toml
+
+[matrix]
+# The homeserver URL of the account.
+homeserver_url = "https://matrix.example.org"
+# The Username of the bot.
+username = "luoxu-rs" # Assuming user ID is @luoxu-rs:example.org
+# The password for the bot. (Note that SSO is not supported)
+# This field can be omitted if credentials.json exists in the current directory of the bot.
+password = "X"
+# The initial name of the login session.
+device_name = "Luoxu-rs"
+
+# Index these rooms
+# Key specifies the index that would be used in Meilisearch
+# Value is the room ID or room alias for the index.
+# This field is used for bootstrapping new indices only.
+[matrix.indices]
+room_id = "!example:example.org"
+room_alias = "#example:example.org"
+
+[meilisearch]
+# The Meilisearch URL that the bot would connect.
+url = "http://localhost:7700"
+# The Meilisearch key.
+key = "X"
+
+[state]
+# The LMDB Database to store maps from indices to room IDs.
+location = "index.mdb"

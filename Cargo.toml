@@ -6,3 +6,14 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+matrix-sdk = { version = "0.6.2", default-features = false, features = ["native-tls", "sled", "anyhow"] }
+ruma = { version = "^0.7.0", features = ["unstable-sanitize", "unstable-msc2676"] }
+anyhow = "1"
+serde_json = "1"
+tokio = { version = "1", features = ["full"] }
+tracing = "0.1"
+tracing-subscriber = "0.3"
+toml = "0.8"
+serde = { version = "1", features = ["derive"] }
+meilisearch-sdk = "0.24.2"
+heed = "0.11.0"
