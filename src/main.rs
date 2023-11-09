@@ -1,3 +1,4 @@
+#![forbid(unsafe_code)]
 use anyhow::Context;
 use luoxu_rs::LuoxuConfig;
 use matrix_sdk::Session;

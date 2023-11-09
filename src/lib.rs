@@ -1,3 +1,4 @@
+use anyhow::Result;
 use heed::EnvOpenOptions;
 use heed::types::Str;
 use matrix_sdk::ruma::MilliSecondsSinceUnixEpoch;
@@ -5,6 +6,7 @@ use matrix_sdk::ruma::{OwnedEventId, OwnedRoomId, OwnedUserId};
 use serde::Deserialize;
 use serde::Serialize;
 use std::collections::HashMap;
+
 
 #[derive(Clone)]
 pub struct LuoxuBotContext {
@@ -81,14 +83,16 @@ pub struct HeedStore {
 }
 
 impl HeedStore {
-    pub fn new(location: &str) -> Result<Self, heed::Error> {
+    pub fn new(location: &str) -> Result<Self> {
         let env = EnvOpenOptions::new().open(location)?;
-        let index_db = env.create_database(Some("index"))?;
-        let name_db = env.create_database(Some("name"))?;
+        let mut wtxn = env.write_txn()?;
+        let index_db = env.create_database(&mut wtxn, Some("index"))?;
+        let name_db = env.create_database(&mut wtxn, Some("name"))?;
+        wtxn.commit()?;
         Ok(HeedStore { env, index_db, name_db })
     }
 
-    pub fn add_entry(&self, room_id: &str, index: &str, name: Option<&str>) -> Result<(), heed::Error> {
+    pub fn add_entry(&self, room_id: &str, index: &str, name: Option<&str>) -> Result<()> {
         let mut wtxn = self.env.write_txn()?;
         self.index_db.put(&mut wtxn, room_id, index)?;
         self.name_db.put(&mut wtxn, room_id, name.unwrap_or(room_id))?;
@@ -96,7 +100,7 @@ impl HeedStore {
         Ok(())
     }
 
-    pub fn move_entry(&self, old_room_id: &str, new_room_id: &str) -> Result<(), heed::Error> {
+    pub fn move_entry(&self, old_room_id: &str, new_room_id: &str) -> Result<()> {
         let rtxn = self.env.read_txn()?;
         let index = self.index_db.get(&rtxn, old_room_id)?;
         let name = self.name_db.get(&rtxn, old_room_id)?;
@@ -107,7 +111,7 @@ impl HeedStore {
         Ok(())
     }
 
-    pub fn update_entry(&self, room_id: &str, index: Option<&str>, name: Option<&str>) -> Result<(), heed::Error> {
+    pub fn update_entry(&self, room_id: &str, index: Option<&str>, name: Option<&str>) -> Result<()> {
         let mut wtxn = self.env.write_txn()?;
         if let Some(index) = index {
             self.index_db.put(&mut wtxn, room_id, index)?;
@@ -119,10 +123,19 @@ impl HeedStore {
         Ok(())
     }
 
-    pub fn get_index(&self, room_id: OwnedRoomId) -> Result<Option<String>, heed::Error> {
+    pub fn get_index(&self, room_id: OwnedRoomId) -> Result<Option<String>> {
         let rtxn = self.env.read_txn()?;
-        if let Some(index) = self.index_db.get(&rtxn, room_id.as_str())? {
+        if let Ok(Some(index)) = self.index_db.get(&rtxn, room_id.as_str()) {
             Ok(Some(index.to_string()))
+        } else {
+            Ok(None)
+        }
+    }
+
+    pub fn get_name(&self, room_id: OwnedRoomId) -> Result<Option<String>> {
+        let rtxn = self.env.read_txn()?;
+        if let Ok(Some(name)) = self.name_db.get(&rtxn, room_id.as_str()) {
+            Ok(Some(name.to_string()))
         } else {
             Ok(None)
         }

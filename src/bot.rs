@@ -11,6 +11,8 @@ use std::sync::Arc;
 use tracing::{event, Level};
 
 use crate::callbacks::on_room_message;
+use crate::callbacks::on_room_name;
+use crate::callbacks::on_room_tombstone;
 
 pub enum LoginType {
     Password(String),
@@ -134,6 +136,8 @@ impl LuoxuBot {
         event!(Level::INFO, "Initial sync beginning...");
         self.client.sync_once(SyncSettings::default()).await?;
         self.client.add_event_handler(on_room_message);
+        self.client.add_event_handler(on_room_name);
+        self.client.add_event_handler(on_room_tombstone);
         let settings = SyncSettings::default().token(self.client.sync_token().await.unwrap());
         self.client.sync(settings).await?;
         Ok(())
