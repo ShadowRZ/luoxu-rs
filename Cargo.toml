@@ -17,3 +17,5 @@ toml = "0.8"
 serde = { version = "1", features = ["derive"] }
 meilisearch-sdk = "0.24.3"
 heed = "0.20.0-alpha.6"
+axum = "0.6.20"
+axum-macros = "0.3.8"
