@@ -44,9 +44,7 @@ pub async fn group_search(
         filter = format!("timestamp < {}", offset);
         query = query.with_filter(&filter);
     }
-    let search_result = query
-        .execute::<LuoxuMessage>()
-        .await?;
+    let search_result = query.execute::<LuoxuMessage>().await?;
     let result = MessageSearchResults {
         messages: search_result
             .hits
