@@ -1,22 +1,20 @@
-use matrix_sdk::ruma::events::room::tombstone::OriginalSyncRoomTombstoneEvent;
-use matrix_sdk::ruma::events::room::name::OriginalSyncRoomNameEvent;
+use anyhow::Context;
 use matrix_sdk::ruma::events::room::message::sanitize::HtmlSanitizerMode;
 use matrix_sdk::ruma::events::room::message::sanitize::RemoveReplyFallback;
 use matrix_sdk::ruma::events::room::message::MessageType;
 use matrix_sdk::ruma::events::room::message::OriginalSyncRoomMessageEvent;
 use matrix_sdk::ruma::events::room::message::Relation;
 use matrix_sdk::ruma::events::room::message::RoomMessageEventContent;
+use matrix_sdk::ruma::events::room::name::OriginalSyncRoomNameEvent;
+use matrix_sdk::ruma::events::room::tombstone::OriginalSyncRoomTombstoneEvent;
 use matrix_sdk::ruma::serde::Raw;
 use matrix_sdk::{
     event_handler::{Ctx, RawEvent},
     room::Room,
 };
 use serde_json::Value;
-use tracing::Level;
-use tracing::event;
 use std::collections::HashMap;
 use std::sync::Arc;
-use anyhow::Context;
 
 use luoxu_rs::{LuoxuBotContext, LuoxuMessage};
 
@@ -81,8 +79,11 @@ pub async fn on_room_message(
     };
     // Save message.
     let search = &ctx.search;
-    if let Ok(Some(index)) =  &ctx.store.get_index(room_id.into()) {
-        search.index(index).add_or_update(&[msg], None::<&str>).await?;
+    if let Ok(Some(index)) = &ctx.store.get_index(room_id.into()) {
+        search
+            .index(index)
+            .add_or_update(&[msg], None::<&str>)
+            .await?;
     }
 
     anyhow::Ok(())
@@ -93,7 +94,8 @@ pub async fn on_room_name(
     room: Room,
     ctx: Ctx<Arc<LuoxuBotContext>>,
 ) -> anyhow::Result<()> {
-    ctx.store.update_entry(room.room_id().as_str(), None, ev.content.name.as_deref())
+    ctx.store
+        .update_entry(room.room_id().as_str(), None, ev.content.name.as_deref())
 }
 
 pub async fn on_room_tombstone(
@@ -102,8 +104,17 @@ pub async fn on_room_tombstone(
     client: matrix_sdk::Client,
     ctx: Ctx<Arc<LuoxuBotContext>>,
 ) -> anyhow::Result<()> {
-    event!(Level::INFO, "Joining new room as a room replacement happened, event: {:#?}", ev);
-    let _ = client.join_room_by_id(&ev.content.replacement_room).await.context("Joining the new room failed")?;
-    ctx.store.move_entry(room.room_id().as_str(), ev.content.replacement_room.as_str())?;
+    tracing::info!(
+        "Joining new room as a room replacement happened, event: {:#?}",
+        ev
+    );
+    let _ = client
+        .join_room_by_id(&ev.content.replacement_room)
+        .await
+        .context("Joining the new room failed")?;
+    ctx.store.move_entry(
+        room.room_id().as_str(),
+        ev.content.replacement_room.as_str(),
+    )?;
     Ok(())
 }

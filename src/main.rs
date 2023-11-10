@@ -10,7 +10,6 @@ mod bot;
 mod callbacks;
 
 static SESSION_JSON_FILE: &str = "credentials.json";
-static CONFIG_FILE: &str = "luoxu-rs.toml";
 
 fn get_session() -> anyhow::Result<Session> {
     Ok(serde_json::from_str::<Session>(&fs::read_to_string(
@@ -18,15 +17,11 @@ fn get_session() -> anyhow::Result<Session> {
     )?)?)
 }
 
-fn get_config() -> anyhow::Result<LuoxuConfig> {
-    LuoxuConfig::from_string(fs::read_to_string(CONFIG_FILE)?)
-}
-
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt::init();
 
-    let config = get_config().context("Failed to read config file")?;
+    let config = LuoxuConfig::get_config().context("Failed to read config file")?;
 
     let session = get_session();
 

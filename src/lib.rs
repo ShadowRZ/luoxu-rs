@@ -1,17 +1,18 @@
 use anyhow::Result;
-use heed::EnvOpenOptions;
 use heed::types::Str;
+use heed::EnvOpenOptions;
 use matrix_sdk::ruma::MilliSecondsSinceUnixEpoch;
 use matrix_sdk::ruma::{OwnedEventId, OwnedRoomId, OwnedUserId};
 use serde::Deserialize;
 use serde::Serialize;
 use std::collections::HashMap;
 
+static CONFIG_FILE: &str = "luoxu-rs.toml";
 
 #[derive(Clone)]
 pub struct LuoxuBotContext {
     pub search: meilisearch_sdk::client::Client,
-    pub store: HeedStore
+    pub store: HeedStore,
 }
 
 #[derive(Deserialize, Debug)]
@@ -23,8 +24,30 @@ pub struct LuoxuConfig {
 }
 
 impl LuoxuConfig {
-    pub fn from_string(config: String) -> anyhow::Result<LuoxuConfig> {
+    pub fn from_string(config: String) -> anyhow::Result<Self> {
         Ok(toml::from_str(&config)?)
+    }
+
+    pub fn get_config() -> anyhow::Result<Self> {
+        use std::fs;
+        Self::from_string(fs::read_to_string(CONFIG_FILE)?)
+    }
+
+    pub fn get_context(&self) -> anyhow::Result<LuoxuBotContext> {
+        use std::fs;
+        let config = self;
+        // Create state dirs.
+        let _ = fs::create_dir_all(&config.state.location);
+
+        let store = HeedStore::new(&config.state.location)?;
+        let context = LuoxuBotContext {
+            search: meilisearch_sdk::client::Client::new(
+                &config.meilisearch.url,
+                Some(&config.meilisearch.key),
+            ),
+            store,
+        };
+        Ok(context)
     }
 }
 
@@ -74,6 +97,12 @@ impl From<OwnedEventId> for KeyEventId {
     }
 }
 
+impl KeyEventId {
+    pub fn event_id(&self) -> String {
+        format!("${}", self.0)
+    }
+}
+
 #[derive(Clone)]
 /// State store backed by Heed.
 pub struct HeedStore {
@@ -82,20 +111,31 @@ pub struct HeedStore {
     pub name_db: heed::Database<Str, Str>,
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone, Eq, PartialEq)]
+pub struct RoomInfo {
+    pub index_name: String,
+    pub room_name: Option<String>,
+}
+
 impl HeedStore {
     pub fn new(location: &str) -> Result<Self> {
-        let env = EnvOpenOptions::new().open(location)?;
+        let env = EnvOpenOptions::new().max_dbs(2).open(location)?;
         let mut wtxn = env.write_txn()?;
         let index_db = env.create_database(&mut wtxn, Some("index"))?;
         let name_db = env.create_database(&mut wtxn, Some("name"))?;
         wtxn.commit()?;
-        Ok(HeedStore { env, index_db, name_db })
+        Ok(HeedStore {
+            env,
+            index_db,
+            name_db,
+        })
     }
 
     pub fn add_entry(&self, room_id: &str, index: &str, name: Option<&str>) -> Result<()> {
         let mut wtxn = self.env.write_txn()?;
         self.index_db.put(&mut wtxn, room_id, index)?;
-        self.name_db.put(&mut wtxn, room_id, name.unwrap_or(room_id))?;
+        self.name_db
+            .put(&mut wtxn, room_id, name.unwrap_or(room_id))?;
         wtxn.commit()?;
         Ok(())
     }
@@ -111,7 +151,12 @@ impl HeedStore {
         Ok(())
     }
 
-    pub fn update_entry(&self, room_id: &str, index: Option<&str>, name: Option<&str>) -> Result<()> {
+    pub fn update_entry(
+        &self,
+        room_id: &str,
+        index: Option<&str>,
+        name: Option<&str>,
+    ) -> Result<()> {
         let mut wtxn = self.env.write_txn()?;
         if let Some(index) = index {
             self.index_db.put(&mut wtxn, room_id, index)?;
@@ -139,5 +184,24 @@ impl HeedStore {
         } else {
             Ok(None)
         }
+    }
+
+    pub fn get_rooms(&self) -> Result<Vec<RoomInfo>> {
+        let mut result = Vec::new();
+        let rtxn = self.env.read_txn()?;
+        let iter = self.index_db.iter(&rtxn)?;
+        for item in iter {
+            let (key, index_name) = item?;
+            let room_name = self
+                .name_db
+                .get(&rtxn, key)?
+                .map(|room_name| room_name.to_string());
+            let info = RoomInfo {
+                index_name: index_name.to_string(),
+                room_name,
+            };
+            result.push(info);
+        }
+        Ok(result)
     }
 }

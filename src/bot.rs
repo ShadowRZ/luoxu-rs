@@ -1,14 +1,12 @@
 use anyhow::bail;
-use luoxu_rs::HeedStore;
 use luoxu_rs::LuoxuBotContext;
 use luoxu_rs::LuoxuConfig;
 use matrix_sdk::config::SyncSettings;
+use matrix_sdk::ruma::{RoomAliasId, RoomId};
 use matrix_sdk::Session;
 use meilisearch_sdk::IndexesQuery;
-use matrix_sdk::ruma::{RoomAliasId, RoomId};
-use std::fs;
+
 use std::sync::Arc;
-use tracing::{event, Level};
 
 use crate::callbacks::on_room_message;
 use crate::callbacks::on_room_name;
@@ -33,33 +31,13 @@ impl LuoxuBot {
             .sled_store("store", None)?;
         let client = builder.build().await?;
 
-        let context = LuoxuBot::get_context(&config).await?;
+        let context = config.get_context()?;
 
         Ok(LuoxuBot {
             config,
             client,
             context: context.into(),
         })
-    }
-
-    pub async fn get_context(config: &LuoxuConfig) -> anyhow::Result<LuoxuBotContext> {
-        // Create state dirs.
-        let _ = fs::create_dir_all(&config.state.location);
-
-        let store = HeedStore::new(&config.state.location);
-        match store {
-            Ok(store) => {
-                let context = LuoxuBotContext {
-                    search: meilisearch_sdk::client::Client::new(
-                        &config.meilisearch.url,
-                        Some(&config.meilisearch.key),
-                    ),
-                    store
-                };
-                Ok(context)
-            }
-            Err(e) => bail!("Creating store failed: {}", e)
-        }
     }
 
     pub async fn login(&self, login: LoginType) -> anyhow::Result<Option<Session>> {
@@ -86,8 +64,7 @@ impl LuoxuBot {
         let indices = IndexesQuery::new(client).with_limit(512).execute().await?;
         let result = self.config.matrix.indices.iter();
         for (index, _) in result {
-            let created: Vec<_> =
-                indices.results.iter().map(|i| i.uid.clone()).collect();
+            let created: Vec<_> = indices.results.iter().map(|i| i.uid.clone()).collect();
             if !created.contains(&index.to_string()) {
                 let index = client
                     .create_index(index, Some("event_id"))
@@ -123,7 +100,11 @@ impl LuoxuBot {
             };
             if let Some(room) = self.client.get_room(<&RoomId>::try_from(room.as_str())?) {
                 let name = room.name();
-                if let Err(e) = self.context.store.update_entry(room.room_id().as_str(), Some(index), name.as_deref()) {
+                if let Err(e) = self.context.store.update_entry(
+                    room.room_id().as_str(),
+                    Some(index),
+                    name.as_deref(),
+                ) {
                     bail!("Updating state failed: {}", e)
                 }
             }
@@ -133,7 +114,7 @@ impl LuoxuBot {
 
     pub async fn run(self) -> anyhow::Result<()> {
         self.client.add_event_handler_context(self.context.clone());
-        event!(Level::INFO, "Initial sync beginning...");
+        tracing::info!("Initial sync beginning...");
         self.client.sync_once(SyncSettings::default()).await?;
         self.client.add_event_handler(on_room_message);
         self.client.add_event_handler(on_room_name);
