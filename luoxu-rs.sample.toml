@@ -23,6 +23,9 @@ room_alias = "#example:example.org"
 # The Meilisearch URL that the bot would connect.
 url = "http://localhost:7700"
 # The Meilisearch key.
+# In general it's recommanded to use a dedicated API key for this field.
+# See https://www.meilisearch.com/docs/learn/security/master_api_keys
+# The required actions for the dedicated API key are: documents.*, indexes.*, search
 key = "X"
 
 [state]
