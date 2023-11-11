@@ -1,8 +1,9 @@
 use anyhow::Result;
 use heed::types::Str;
 use heed::EnvOpenOptions;
+use matrix_sdk::reqwest::Url;
 use matrix_sdk::ruma::MilliSecondsSinceUnixEpoch;
-use matrix_sdk::ruma::{OwnedEventId, OwnedRoomId, OwnedUserId};
+use matrix_sdk::ruma::{MxcUri, OwnedEventId, OwnedRoomId, OwnedUserId};
 use serde::Deserialize;
 use serde::Serialize;
 use std::collections::HashMap;
@@ -82,9 +83,23 @@ pub struct LuoxuMessage {
     pub external_url: Option<String>,
     pub user_id: OwnedUserId,
     pub user_display_name: Option<String>,
+    pub user_avatar: Option<LuoxuAvatar>,
     pub timestamp: MilliSecondsSinceUnixEpoch,
     pub room_id: OwnedRoomId,
     pub ocr_body: Option<String>,
+}
+
+/// A wrapper for a avatar.
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct LuoxuAvatar(String);
+
+impl LuoxuAvatar {
+    pub fn new(avatar_uri: &MxcUri, homeserver: Url) -> Result<Self> {
+        let (server_name, media_id) = avatar_uri.parts()?;
+        let result = homeserver
+            .join(format!("/_matrix/media/r0/download/{}/{}", server_name, media_id).as_str())?;
+        Ok(LuoxuAvatar(result.to_string()))
+    }
 }
 
 /// A Event ID for Meilisearch primary key.

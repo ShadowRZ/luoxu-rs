@@ -1,4 +1,5 @@
 use anyhow::Context;
+use luoxu_rs::LuoxuAvatar;
 use matrix_sdk::ruma::events::room::message::sanitize::HtmlSanitizerMode;
 use matrix_sdk::ruma::events::room::message::sanitize::RemoveReplyFallback;
 use matrix_sdk::ruma::events::room::message::MessageType;
@@ -65,6 +66,18 @@ pub async fn on_room_message(
             None => None,
         }
     };
+    let user_avatar = {
+        match room.get_member(&user_id).await? {
+            Some(member) => {
+                let homeserver = client.homeserver().await;
+                match member.avatar_url() {
+                    Some(avatar_url) => Some(LuoxuAvatar::new(avatar_url, homeserver)?),
+                    None => None,
+                }
+            }
+            None => None,
+        }
+    };
     let timestamp = ev.origin_server_ts;
     let room_id = room.room_id();
     let msg = LuoxuMessage {
@@ -73,6 +86,7 @@ pub async fn on_room_message(
         external_url,
         user_id,
         user_display_name,
+        user_avatar,
         timestamp,
         room_id: room_id.into(),
         ocr_body: None,
