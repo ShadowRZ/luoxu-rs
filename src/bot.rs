@@ -74,7 +74,7 @@ impl LuoxuBot {
                     .try_make_index(client)
                     .unwrap();
                 index
-                    .set_filterable_attributes(&["user_id"])
+                    .set_filterable_attributes(&["user_id", "timestamp"])
                     .await?
                     .wait_for_completion(client, None, None)
                     .await?;
