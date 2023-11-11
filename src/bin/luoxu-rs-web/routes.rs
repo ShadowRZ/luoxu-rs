@@ -60,6 +60,7 @@ pub async fn group_search(
                     display_name: result.user_display_name,
                     timestamp: result.timestamp,
                     room_id: result.room_id.to_string(),
+                    avatar_url: result.user_avatar.map(|result| result.into_string()),
                 }
             })
             .collect(),
@@ -111,6 +112,7 @@ pub struct MessageSearchResult {
     pub html_body: String,
     pub external_url: Option<String>,
     pub display_name: Option<String>,
+    pub avatar_url: Option<String>,
     pub timestamp: MilliSecondsSinceUnixEpoch,
     pub room_id: String,
 }

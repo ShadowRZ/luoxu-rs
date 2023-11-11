@@ -100,6 +100,10 @@ impl LuoxuAvatar {
             .join(format!("/_matrix/media/r0/download/{}/{}", server_name, media_id).as_str())?;
         Ok(LuoxuAvatar(result.to_string()))
     }
+
+    pub fn into_string(self) -> String {
+        self.0
+    }
 }
 
 /// A Event ID for Meilisearch primary key.
