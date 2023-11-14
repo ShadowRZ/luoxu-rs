@@ -3,10 +3,10 @@ pub mod routes;
 
 use axum::{routing::get, Router};
 use luoxu_rs::LuoxuConfig;
-use tokio::signal;
 use std::net::SocketAddr;
+use tokio::signal;
 
-use crate::routes::{group_search, groups};
+use crate::routes::{group_search, groups, index};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -16,6 +16,7 @@ async fn main() -> anyhow::Result<()> {
 
     // build our application with a single route
     let app = Router::new()
+        .route("/", get(index))
         .route("/groups", get(groups))
         .route("/search/:index_name", get(group_search))
         .with_state(context.into());

@@ -4,7 +4,6 @@ use axum::{
     response::{IntoResponse, Response},
     Json,
 };
-use axum_macros::debug_handler;
 use luoxu_rs::{LuoxuBotContext, LuoxuMessage, RoomInfo};
 use meilisearch_sdk::Selectors;
 use ruma::MilliSecondsSinceUnixEpoch;
@@ -14,6 +13,23 @@ use std::sync::Arc;
 
 type RouteResult<T> = Result<T, AppError>;
 
+pub async fn index() -> &'static str {
+    "\
+Luoxu-rs Web interface
+
+- GET /groups
+ Returns a list of indexed rooms.
+
+- GET /search/:index_name?query=(query)[&offset=offset]
+ Search an index.
+
+ Parameters:
+  - [Required] index_name: The index name.
+  - [Required] query: The query paramter.
+  - [Optional] offset: The server timestamp offset, should be specified as miliseconds since Unix epoch.
+"
+}
+
 /// List all groups indexed.
 pub async fn groups(State(state): State<Arc<LuoxuBotContext>>) -> RouteResult<Json<Vec<RoomInfo>>> {
     let result = state.store.get_rooms()?;
@@ -22,7 +38,6 @@ pub async fn groups(State(state): State<Arc<LuoxuBotContext>>) -> RouteResult<Js
 
 /// Search a group.
 /// GET /search/:index_name?query=
-#[debug_handler]
 pub async fn group_search(
     State(state): State<Arc<LuoxuBotContext>>,
     Path(index_name): Path<String>,
