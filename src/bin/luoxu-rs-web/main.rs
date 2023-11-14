@@ -3,6 +3,7 @@ pub mod routes;
 
 use axum::{routing::get, Router};
 use luoxu_rs::LuoxuConfig;
+use tokio::signal;
 use std::net::SocketAddr;
 
 use crate::routes::{group_search, groups};
@@ -24,7 +25,34 @@ async fn main() -> anyhow::Result<()> {
     // run it with hyper on *:3000
     axum::Server::bind(&addr)
         .serve(app.into_make_service())
+        .with_graceful_shutdown(shutdown_signal())
         .await?;
 
     Ok(())
+}
+
+async fn shutdown_signal() {
+    let ctrl_c = async {
+        signal::ctrl_c()
+            .await
+            .expect("failed to install Ctrl+C handler");
+    };
+
+    #[cfg(unix)]
+    let terminate = async {
+        signal::unix::signal(signal::unix::SignalKind::terminate())
+            .expect("failed to install signal handler")
+            .recv()
+            .await;
+    };
+
+    #[cfg(not(unix))]
+    let terminate = std::future::pending::<()>();
+
+    tokio::select! {
+        _ = ctrl_c => {},
+        _ = terminate => {},
+    }
+
+    tracing::info!("Shutdown signal received, starting graceful shutdown");
 }
