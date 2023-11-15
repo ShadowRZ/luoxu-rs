@@ -5,6 +5,8 @@ use matrix_sdk::Session;
 use std::fs;
 use tokio::{signal, task::JoinHandle};
 use tokio_util::sync::CancellationToken;
+use tracing::level_filters::LevelFilter;
+use tracing_subscriber::EnvFilter;
 
 use crate::bot::{LoginType, LuoxuBot};
 
@@ -21,7 +23,16 @@ fn get_session() -> anyhow::Result<Session> {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    tracing_subscriber::fmt::init();
+    let filter = EnvFilter::from_default_env()
+        .add_directive(LevelFilter::WARN.into())
+        .add_directive("luoxu_rs=debug".parse()?);
+    tracing_subscriber::fmt()
+        .with_env_filter(filter)
+        .with_level(true)
+        .with_target(true)
+        .with_ansi(true)
+        .compact()
+        .init();
 
     let config = LuoxuConfig::get_config().context("Failed to read config file")?;
 
@@ -77,7 +88,7 @@ async fn main() -> anyhow::Result<()> {
     // Run it
     bot.update_state().await?;
     bot.update_indices().await?;
-    let task: JoinHandle<anyhow::Result<()>> = tokio::spawn(async move{
+    let task: JoinHandle<anyhow::Result<()>> = tokio::spawn(async move {
         tokio::select! {
             _ = bot_cts.cancelled() => {
                 tracing::info!("Shutdown signal received, starting graceful shutdown");
